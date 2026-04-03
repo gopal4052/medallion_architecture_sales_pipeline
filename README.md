@@ -1,44 +1,43 @@
-
-# 🚀 Data Engineering Pipeline (Bronze → Silver)
+# 🚀 Sales Data Engineering Pipeline (Bronze → Silver → Gold)
 
 ## 📌 Project Overview
 
-This project demonstrates a real-world **data engineering pipeline** using PySpark and Delta Lake, implementing a **Medallion Architecture (Bronze → Silver layers)**.
+This project demonstrates an end-to-end **data engineering pipeline** using **PySpark** and **Delta Lake**, following the **Medallion Architecture (Bronze, Silver, Gold layers)**.
 
-The goal is to simulate how raw data is ingested, cleaned, and prepared for downstream analytics.
+The pipeline simulates real-world data processing by ingesting raw data, cleaning and transforming it, and generating business-level insights.
 
 ---
 
 ## 🏗️ Architecture
 
-### 🥉 Bronze Layer (Raw Ingestion)
+### 🥉 Bronze Layer (Raw Data Ingestion)
 
-* Data is ingested from raw CSV file generated manually by creating a script
+* Data is ingested from raw CSV file created using a script such that data is dirty replicating real world case.
 * Stored as **Delta Tables**
-* Schema inferred automatically
+* Schema is inferred automatically
 * No transformations applied
 
-**Key Features:**
+**Purpose:**
 
-* Preserves raw data as-is
-* Enables **ACID transactions** using Delta Lake
-* Acts as a source of truth for downstream layers
+* Preserve raw data as-is
+* Provide a reliable source of truth
+* Enable **ACID transactions** using Delta Lake
 
 ---
 
 ### 🥈 Silver Layer (Data Cleaning & Transformation)
 
-Data from the Bronze layer is processed to improve quality and consistency.
+The Silver layer improves data quality and prepares it for analysis.
 
 **Transformations performed:**
 
-* ✅ **Data Type Casting**
+* ✅ **Safe Data Type Casting**
 
-  * Converted `sales` column from string → double using safe casting (`try_cast`)
+  * Converted `sales` from string → double using `try_cast` to prevent pipeline failure
 
-* ✅ **Handling Invalid Values**
+* ✅ **Handling Invalid Data**
 
-  * Invalid entries (e.g., "abc") converted to NULL, then handled
+  * Invalid values (e.g., "abc") converted to NULL and handled safely
 
 * ✅ **Null Handling**
 
@@ -47,12 +46,30 @@ Data from the Bronze layer is processed to improve quality and consistency.
 
 * ✅ **Data Standardization**
 
-  * Converted `city` values to lowercase to avoid duplicate groupings
+  * Converted all `city` values to lowercase to avoid duplicate grouping issues
 
 * ✅ **Duplicate Handling**
 
-  * Identified duplicates using record counts
-  * Removed exact duplicate rows safely
+  * Validated duplicate records using count comparison
+  * Removed exact duplicate rows
+
+---
+
+### 🥇 Gold Layer (Business-Level Aggregation)
+
+The Gold layer provides **analytics-ready data** for reporting and dashboards.
+
+**Tables created:**
+
+#### 📊 1. Total Sales per City
+
+* Aggregated total sales for each city
+
+#### 📉 3. KPI Metrics
+
+* Total sales
+* Average sales
+* Total number of records
 
 ---
 
@@ -60,7 +77,7 @@ Data from the Bronze layer is processed to improve quality and consistency.
 
 * **PySpark**
 * **Delta Lake**
-* **Databricks / Spark Environment**
+* **Databricks / Apache Spark**
 * **CSV (Raw Data Source)**
 
 ---
@@ -68,58 +85,62 @@ Data from the Bronze layer is processed to improve quality and consistency.
 ## 📊 Pipeline Flow
 
 ```text
-Raw CSV Data
+Raw CSV Data 
      ↓
-Bronze Layer (Delta Table - Raw Data)
+Bronze Layer (Delta - Raw Data)
      ↓
 Silver Layer (Cleaned & Standardized Data)
+     ↓
+Gold Layer (Aggregated Business Insights)
 ```
 
 ---
 
 ## 🧠 Key Learnings
 
-* Importance of **safe data casting (`try_cast`)** in real-world pipelines
-* Difference between **NULL vs 0** and applying business logic
+* Implementing **Medallion Architecture (Bronze → Silver → Gold)**
 * Handling **dirty and inconsistent data**
-* Understanding **data immutability in PySpark**
-* Designing pipelines using **layered architecture**
+* Using **try_cast for safe transformations**
+* Understanding **NULL vs 0 in business logic**
+* Performing **data standardization and deduplication**
+* Building **aggregation pipelines for analytics**
 
 ---
 
-## 🚀 Next Steps
-
-* Build **Gold Layer** for aggregations and business insights
-* Implement **data quality checks**
-* Add **pipeline automation**
-
----
-
-## 📁 Repository Structure (Current)
+## 📁 Repository Structure
 
 ```text
 project/
 │
 ├── data/
-│   └── raw_sales_data.csv
+│   └── sales_data_large.csv Generated using sales_data_generation_script.ipynb such that data created is Dirty.
 │
 ├── notebooks/
 │   ├── bronze_layer.ipynb
-│   └── silver_layer.ipynb
+│   ├── silver_layer.ipynb
+│   └── gold_layer.ipynb
 │
 └── README.md
 ```
 
 ---
 
-## 💡 Note
+## 🚀 Future Enhancements
 
-This project simulates real-world data issues such as:
+* Add **data partitioning for performance optimization**
+* Implement **incremental data loading**
+* Introduce **data quality validation checks**
+* Integrate with **Azure Data Engineering tools (ADF, Data Lake, Synapse)**
 
-* Invalid values
-* Missing data
+---
+
+## 💡 Summary
+
+This project replicates a real-world data pipeline by handling:
+
+* Invalid data
+* Missing values
 * Inconsistent formats
 * Duplicate records
 
-and demonstrates how to handle them using scalable data engineering practices.
->>>>>>> Stashed changes
+and transforming them into **clean, structured, and business-ready datasets**.
