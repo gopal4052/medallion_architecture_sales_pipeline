@@ -1,10 +1,15 @@
-# 🚀 Sales Data Engineering Pipeline (Bronze → Silver → Gold)
+# 🚀 Sales Data Engineering Pipeline (Incremental | Bronze → Silver → Gold)
 
 ## 📌 Project Overview
 
-This project demonstrates an end-to-end **data engineering pipeline** using **PySpark** and **Delta Lake**, following the **Medallion Architecture (Bronze, Silver, Gold layers)**.
+This project implements an **end-to-end incremental data engineering pipeline** using **PySpark** and **Delta Lake**, following the **Medallion Architecture (Bronze → Silver → Gold)**.
 
-The pipeline simulates real-world data processing by ingesting raw data, cleaning and transforming it, and generating business-level insights.
+The pipeline simulates real-world production scenarios by:
+
+* ingesting **dirty raw data**
+* processing only **new incremental data**
+* maintaining **cumulative business metrics**
+* ensuring **data reliability using a control table**
 
 ---
 
@@ -12,98 +17,154 @@ The pipeline simulates real-world data processing by ingesting raw data, cleanin
 
 ### 🥉 Bronze Layer (Raw Data Ingestion)
 
-* Data is ingested from raw CSV file created using a script such that data is dirty replicating real world case.
-* Stored as **Delta Tables**
-* Schema is inferred automatically
-* No transformations applied
+* Reads raw CSV files from source folder
+* Adds metadata column: `ingestion_time`
+* Stores data as **append-only Delta table**
 
 **Purpose:**
 
-* Preserve raw data as-is
-* Provide a reliable source of truth
-* Enable **ACID transactions** using Delta Lake
+* Preserve full historical raw data
+* Act as **source of truth**
+* Enable replay and auditing
 
 ---
 
-### 🥈 Silver Layer (Data Cleaning & Transformation)
+### 🥈 Silver Layer (Incremental Cleaning & Transformation)
 
-The Silver layer improves data quality and prepares it for analysis.
+The Silver layer processes **only new data** using:
+
+```python
+ingestion_time > last_run_time
+```
 
 **Transformations performed:**
 
 * ✅ **Safe Data Type Casting**
 
-  * Converted `sales` from string → double using `try_cast` to prevent pipeline failure
+  * `sales` converted using `try_cast` to avoid failures
 
-* ✅ **Handling Invalid Data**
+* ✅ **Invalid Data Handling**
 
-  * Invalid values (e.g., "abc") converted to NULL and handled safely
+  * Invalid values (e.g., `"abc"`) converted to NULL → handled safely
 
 * ✅ **Null Handling**
 
-  * Replaced NULL `sales` with `0` (based on business logic)
-  * Replaced NULL `city` with `"unknown"`
+  * `sales` → 0
+  * `city` → `"unknown"`
 
-* ✅ **Data Standardization**
+* ✅ **Standardization**
 
-  * Converted all `city` values to lowercase to avoid duplicate grouping issues
+  * Converted `city` to lowercase
 
-* ✅ **Duplicate Handling**
+* ✅ **Deduplication**
 
-  * Validated duplicate records using count comparison
-  * Removed exact duplicate rows
+  * Removed duplicate records within batch
+
+**Purpose:**
+
+* Process only incremental data
+* Improve data quality
+* Avoid reprocessing historical data
 
 ---
 
-### 🥇 Gold Layer (Business-Level Aggregation)
+### 🥇 Gold Layer (Cumulative Business Metrics)
 
-The Gold layer provides **analytics-ready data** for reporting and dashboards.
+The Gold layer generates analytics-ready datasets using **MERGE (UPSERT)**.
 
-**Tables created:**
+#### 📊 Total Sales per City
 
-#### 📊 1. Total Sales per City
+```sql
+MERGE INTO gold_table
+USING incremental_data
+ON city
+WHEN MATCHED THEN UPDATE
+WHEN NOT MATCHED THEN INSERT
+```
 
-* Aggregated total sales for each city
+**Purpose:**
 
-#### 📉 3. KPI Metrics
+* Maintain **cumulative aggregates**
+* Avoid full recomputation
+* Enable efficient analytics
 
-* Total sales
-* Average sales
-* Total number of records
+---
+
+## 🧠 Incremental Processing Design
+
+### 🔹 Approach Used
+
+* **Batch-level incremental processing**
+* No source timestamp → uses `ingestion_time`
+
+---
+
+### 🔹 Control Table (Checkpointing)
+
+Tracks pipeline state:
+
+| pipeline_name  | last_run_time | status  |
+| -------------- | ------------- | ------- |
+| sales_pipeline | timestamp     | SUCCESS |
+
+**Role:**
+
+* Ensures only new data is processed
+* Prevents duplicate processing
+* Enables restart-safe pipeline
+
+---
+
+## 🔁 Pipeline Flow
+
+```text
+Raw CSV Files
+      ↓
+Bronze (Append Raw Data + ingestion_time)
+      ↓
+Silver (Process only new data using control table)
+      ↓
+Gold (MERGE incremental aggregates)
+      ↓
+Update Control Table (after success)
+```
+
+---
+
+## 🧪 Pipeline Validation
+
+The pipeline was validated through multiple test scenarios:
+
+### ✅ Test 1: Initial Load
+
+* All data processed
+* Gold matches Silver aggregation
+
+### ✅ Test 2: Incremental Load
+
+* Only new files processed
+* No reprocessing of old data
+* Gold updated cumulatively
+
+### ✅ Test 3: No New Data
+
+* Silver processed 0 rows
+* Gold remained unchanged
+
+### ✅ Data Quality Validation
+
+* Invalid values handled
+* Nulls replaced correctly
+* Duplicate rows removed
 
 ---
 
 ## 🛠️ Technologies Used
 
-* **PySpark**
-* **Delta Lake**
-* **Databricks / Apache Spark**
-* **CSV (Raw Data Source)**
-
----
-
-## 📊 Pipeline Flow
-
-```text
-Raw CSV Data 
-     ↓
-Bronze Layer (Delta - Raw Data)
-     ↓
-Silver Layer (Cleaned & Standardized Data)
-     ↓
-Gold Layer (Aggregated Business Insights)
-```
-
----
-
-## 🧠 Key Learnings
-
-* Implementing **Medallion Architecture (Bronze → Silver → Gold)**
-* Handling **dirty and inconsistent data**
-* Using **try_cast for safe transformations**
-* Understanding **NULL vs 0 in business logic**
-* Performing **data standardization and deduplication**
-* Building **aggregation pipelines for analytics**
+* PySpark
+* Delta Lake
+* Databricks / Apache Spark
+* CSV (Raw Data Source)
 
 ---
 
@@ -113,12 +174,15 @@ Gold Layer (Aggregated Business Insights)
 project/
 │
 ├── data/
-│   └── sales_data_large.csv Generated using sales_data_generation_script.ipynb such that data created is Dirty.
+│   └── generated CSV files (multiple batches)
 │
 ├── notebooks/
 │   ├── bronze_layer.ipynb
 │   ├── silver_layer.ipynb
 │   └── gold_layer.ipynb
+│
+├── validation/
+│   └── pipeline_validation.md
 │
 └── README.md
 ```
@@ -127,20 +191,25 @@ project/
 
 ## 🚀 Future Enhancements
 
-* Add **data partitioning for performance optimization**
-* Implement **incremental data loading**
-* Introduce **data quality validation checks**
-* Integrate with **Azure Data Engineering tools (ADF, Data Lake, Synapse)**
+* Use **Auto Loader** for file-based incremental ingestion
+* Add **orchestration (ADF / Airflow)**
+* Implement **failure handling (status = FAILED)**
+* Add **data quality checks (expectations)**
+* Optimize using **partitioning**
 
 ---
 
 ## 💡 Summary
 
-This project replicates a real-world data pipeline by handling:
+This project demonstrates:
 
-* Invalid data
-* Missing values
-* Inconsistent formats
-* Duplicate records
+* Incremental data processing
+* Medallion architecture implementation
+* Data cleaning and standardization
+* Deduplication strategies
+* Delta Lake MERGE (upsert logic)
+* Control-table-based checkpointing
 
-and transforming them into **clean, structured, and business-ready datasets**.
+It reflects a **production-style batch data pipeline design**.
+
+---
